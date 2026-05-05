@@ -9,16 +9,23 @@
 	compatible = "tplink,archer-c6u-v1", "mediatek,mt7621-soc";
 	model = "TP-Link Archer C6U v1";
 
-	aliases {
-		led-boot = &led_power;
-		led-failsafe = &led_power;
-		led-running = &led_power;
-		led-upgrade = &led_power;
-		label-mac-device = &gmac0;
-	};
+	leds {
+		compatible = "gpio-leds";
 
-	chosen {
-		bootargs = "console=ttyS0,115200";
+		stat_r {
+			label = "red:status";
+			gpios = <&gpio 13 GPIO_ACTIVE_HIGH>;
+		};
+
+		stat_y {
+			label = "yellow:status";
+			gpios = <&gpio 14 GPIO_ACTIVE_LOW>;
+		};
+
+		led_blue: stat_b {
+			label = "blue:status";
+			gpios = <&gpio 15 GPIO_ACTIVE_LOW>;
+		};
 	};
 
 	keys {
@@ -26,67 +33,9 @@
 
 		reset {
 			label = "reset";
-			gpios = <&gpio 8 GPIO_ACTIVE_LOW>;
+			gpios = <&gpio 3 GPIO_ACTIVE_LOW>;
 			linux,code = <KEY_RESTART>;
 		};
-
-		wps {
-			label = "wps";
-			gpios = <&gpio 10 GPIO_ACTIVE_LOW>;
-			linux,code = <KEY_WPS_BUTTON>;
-		};
-	};
-
-	leds {
-		compatible = "gpio-leds";
-
-		led_power: power {
-			label = "green:power";
-			gpios = <&gpio 4 GPIO_ACTIVE_LOW>;
-		};
-
-		usb {
-			label = "green:usb";
-			gpios = <&gpio 13 GPIO_ACTIVE_LOW>;
-			trigger-sources = <&ehci_port2>;
-			linux,default-trigger = "usbport";
-		};
-
-		wan-orange {
-			label = "orange:wan";
-			gpios = <&gpio 14 GPIO_ACTIVE_LOW>;
-		};
-
-		lan {
-			label = "green:lan";
-			gpios = <&gpio 15 GPIO_ACTIVE_LOW>;
-		};
-
-		wifi5g {
-			label = "green:wifi5g";
-			gpios = <&gpio 16 GPIO_ACTIVE_LOW>;
-			linux,default-trigger = "phy1tpt";
-		};
-
-		wifi2g {
-			label = "green:wifi2g";
-			gpios = <&gpio 18 GPIO_ACTIVE_LOW>;
-			linux,default-trigger = "phy0tpt";
-		};
-
-		wan-green {
-			label = "green:wan";
-			gpios = <&gpio 45 GPIO_ACTIVE_LOW>;
-		};
-	};
-
-	reg_usb_vbus: regulator {
-		compatible = "regulator-fixed";
-		regulator-name = "usb_vbus";
-		regulator-min-microvolt = <5000000>;
-		regulator-max-microvolt = <5000000>;
-		gpio = <&gpio 3 GPIO_ACTIVE_HIGH>;
-		enable-active-high;
 	};
 };
 
@@ -96,7 +45,7 @@
 	flash@0 {
 		compatible = "jedec,spi-nor";
 		reg = <0>;
-		spi-max-frequency = <80000000>;
+		spi-max-frequency = <50000000>;
 
 		partitions {
 			compatible = "fixed-partitions";
@@ -105,32 +54,32 @@
 
 			partition@0 {
 				label = "u-boot";
-				reg = <0x000000 0x040000>;
+				reg = <0x0 0x30000>;
 				read-only;
 			};
 
-			partition@40000 {
+			partition@30000 {
+				label = "u-boot-env";
+				reg = <0x30000 0x10000>;
+				read-only;
+			};
+
+			factory: partition@40000 {
+				label = "factory";
+				reg = <0x40000 0x10000>;
+				read-only;
+			};
+
+			partition@50000 {
+				label = "permanent_config";
+				reg = <0x50000 0x50000>;
+				read-only;
+			};
+
+			partition@a0000 {
 				compatible = "denx,uimage";
 				label = "firmware";
-				reg = <0x040000 0xf60000>;
-			};
-
-			config: partition@fa0000 {
-				label = "config";
-				reg = <0xfa0000 0x010000>;
-				read-only;
-			};
-
-			partition@fb0000 {
-				label = "tplink";
-				reg = <0xfb0000 0x040000>;
-				read-only;
-			};
-
-			radio: partition@ff0000 {
-				label = "radio";
-				reg = <0xff0000 0x010000>;
-				read-only;
+				reg = <0xa0000 0xf60000>;
 			};
 		};
 	};
@@ -162,47 +111,34 @@
 };
 
 &gmac0 {
-	mtd-mac-address = <&config 0x8>;
+	mtd-mac-address = <&factory 0xe000>;
+};
+
+&gmac1 {
+	mtd-mac-address = <&factory 0xe006>;
+	status = "okay";
+};
+
+&gsw {
+	mediatek,portmap = "llllw";
+	status = "okay";
+};
+
+&hnat {
+	mtketh-wan = "eth1";
+	mtketh-ppd = "eth0";
+	mtketh-lan = "eth0";
+	mtketh-max-gmac = <2>;
+	/delete-property/ mtkdsa-wan-port;
 };
 
 &switch0 {
-	ports {
-		port@0 {
-			status = "okay";
-			label = "wan";
-			mtd-mac-address = <&config 0x8>;
-			mtd-mac-address-increment = <1>;
-		};
-
-		port@1 {
-			status = "okay";
-			label = "lan1";
-		};
-
-		port@2 {
-			status = "okay";
-			label = "lan2";
-		};
-
-		port@3 {
-			status = "okay";
-			label = "lan3";
-		};
-
-		port@4 {
-			status = "okay";
-			label = "lan4";
-		};
-	};
+	status = "disabled";
 };
 
 &state_default {
 	gpio {
-		groups = "i2c", "uart2", "uart3", "jtag", "wdt", "sdhci";
+		groups = "i2c", "jtag";
 		function = "gpio";
 	};
-};
-
-&xhci {
-	vbus-supply = <&reg_usb_vbus>;
 };
